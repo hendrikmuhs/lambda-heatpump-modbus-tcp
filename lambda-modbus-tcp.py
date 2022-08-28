@@ -6,7 +6,32 @@ in order to increase self-consumption.
 
 usage:
 
-python3 lambda-modbus-tcp.py [-h]
+python3 lambda-modbus-tcp.py [-h] [--source-type {se}] --source-host SOURCE_HOST [--source-port SOURCE_PORT] [--source-unit SOURCE_UNIT] --dest-host
+                            DEST_HOST [--dest-port DEST_PORT] [--dest-type {negative,positive}] [-d] [-i INTERVAL]
+                            [--log {critical,error,warning,info,debug}]
+
+Connect energy manager and lambda heatpump
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --source-type {se}    "se": Solaredge
+  --source-host SOURCE_HOST
+                        source host address
+  --source-port SOURCE_PORT
+                        source port
+  --source-unit SOURCE_UNIT
+                        source unit
+  --dest-host DEST_HOST
+                        heat pump host address
+  --dest-port DEST_PORT
+                        heat pump port to use
+  --dest-type {negative,positive}
+                        "negative": send excess as negative value, "positive": send excess as negative value
+  -d, --daemon          run in daemon mode
+  -i INTERVAL, --interval INTERVAL
+                        interval in seconds for reading/writing
+  --log {critical,error,warning,info,debug}
+                        "critical", "error", "warning", "info" or "debug"
 
 """
 
@@ -70,15 +95,14 @@ class Lambda(HeatPump):
 
     @staticmethod
     def __negative_transform(v):
-        if v < 0:
-            return 2 ** 16
-        return 2 ** 16 - v
+        return 2 ** 16 - max(1, v)
 
     @staticmethod
     def __positive_transform(v):
         return v
 
     def __init__(self, host, port, value_transform):
+        _logger.info("Connecting to Lambda heat pump {}:{}".format(host, port))
         self.heat_pump = ModbusTcpClient(host, port=port)
         self.reconnect()
         if value_transform == "negative":
@@ -111,7 +135,7 @@ class Lambda(HeatPump):
         self.heat_pump.connect()
 
 
-def create_sink(t, host, port, value_transform):
+def create_dest(t, host, port, value_transform):
     if t == "lambda":
         return Lambda(host, port, value_transform)
     raise KeyError("unknown heat pump type")
@@ -128,7 +152,7 @@ def loop(source, dest, interval, daemon):
             if not daemon:
                 raise e
             else:
-                _logger.error("Failed to read/write energy value", e)
+                _logger.error("Failed to read/write energy value, automatically retrying", exc_info=1)
                 time.sleep(interval)
 
 
@@ -190,9 +214,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-d",
         "--daemon",
-        help='run in daemon mode',
-        type=bool,
-        default=False
+        action='store_true',
+        help='run in daemon mode'
     )
 
     parser.add_argument(
@@ -215,5 +238,5 @@ if __name__ == "__main__":
     _logger.setLevel(args.log.upper() if args.log else logging.INFO)
 
     source = create_meter(args.source_type, args.source_host, args.source_port, args.source_unit)
-    dest = create_sink("lambda", args.dest_host, args.dest_port, args.dest_type)
+    dest = create_dest("lambda", args.dest_host, args.dest_port, args.dest_type)
     loop(source, dest, args.interval, args.daemon)
