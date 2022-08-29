@@ -26,8 +26,8 @@ optional arguments:
   --dest-port DEST_PORT
                         heat pump port to use
   --dest-type {negative,positive}
-                        "negative": send excess as negative value, "positive": send excess as negative value
-  -d, --daemon          run in daemon mode
+                        "negative": send excess as negative value, "positive": send excess as is
+  -d, --daemon          run in daemon mode (ignores exceptions)
   -i INTERVAL, --interval INTERVAL
                         interval in seconds for reading/writing
   --log {critical,error,warning,info,debug}
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dest-type",
         choices=["negative", "positive"],
-        help='"negative": send excess as negative value, "positive": send excess as negative value',
+        help='"negative": send excess as negative value, "positive": send excess as is',
         type=str,
         default="negative"
     )
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         "-d",
         "--daemon",
         action='store_true',
-        help='run in daemon mode'
+        help='run in daemon mode (ignores exceptions)'
     )
 
     parser.add_argument(
