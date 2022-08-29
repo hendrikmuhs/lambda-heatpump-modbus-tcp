@@ -95,7 +95,12 @@ class Lambda(HeatPump):
 
     @staticmethod
     def __negative_transform(v):
-        return 2 ** 16 - max(1, v)
+        if v <= 0:
+            return min(-v, 0x7fff)
+        elif v < 0x8000 :
+            return 0x10000 - v
+        return 0x8000
+
 
     @staticmethod
     def __positive_transform(v):
