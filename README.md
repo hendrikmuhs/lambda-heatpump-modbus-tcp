@@ -1,10 +1,16 @@
 # lambda-heatpump-modbus-tcp
-Simple script to connect energy meter with a lambda heatpump over modbus tcp
+(PV Überschuss Steuerung für Lambda Wärmepumpen)
+
+Simple script to connect energy meter with a lambda heatpump over modbus tcp to prioritize execution at times of excess photovoltaic production:
+
+![heatpump-runtime](https://user-images.githubusercontent.com/7126422/190114167-42f43732-50fe-4749-8e3d-93b72817e8d0.png)
+
+(red: consumption, green: pv production, blue: self-consumption)
 
 Supports:
 
-- Solaredge energy meter
-- Lambda heatpump
+- Solaredge energy meter (using [solaredge modbus](https://pypi.org/project/solaredge-modbus/))
+- Lambda heatpump EU08L, EU13L
 
 Example usage:
 
