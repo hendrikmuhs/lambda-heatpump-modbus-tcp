@@ -78,9 +78,20 @@ class SolarEdge(Meter):
         self.meters = self.inverter.meters()
 
 
-def create_meter(t, host, port, unit):
+class StaticValue(Meter):
+
+    def __init__(self, value):
+        self.value = value
+
+    def read(self):
+        return self.value
+
+
+def create_meter(t, host, port, unit, value):
     if t == "se":
         return SolarEdge(host, port, unit)
+    elif t == "static":
+        return StaticValue(value)
     raise KeyError("unknown meter type")
 
 
@@ -162,8 +173,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--source-type",
-        choices=["se"],
-        help='"se": Solaredge',
+        choices=["se", "static"],
+        help='"se": Solaredge, "static": Simulate a static value',
         type=str,
         default="se"
     )
@@ -172,7 +183,7 @@ if __name__ == "__main__":
         "--source-host",
         help='source host address',
         type=str,
-        required=True
+        required=False
     )
 
     parser.add_argument(
@@ -187,6 +198,13 @@ if __name__ == "__main__":
         help='source unit',
         type=int,
         default=1
+    )
+
+    parser.add_argument(
+        "--source-value",
+        help='source value',
+        type=int,
+        default=2000
     )
 
     parser.add_argument(
@@ -237,6 +255,6 @@ if __name__ == "__main__":
 
     _logger.setLevel(args.log.upper() if args.log else logging.INFO)
 
-    source = create_meter(args.source_type, args.source_host, args.source_port, args.source_unit)
+    source = create_meter(args.source_type, args.source_host, args.source_port, args.source_unit, args.source_value)
     dest = create_dest("lambda", args.dest_host, args.dest_port, args.dest_type)
     loop(source, dest, args.interval, args.daemon)
