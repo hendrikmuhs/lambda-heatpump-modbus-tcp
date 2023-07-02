@@ -38,11 +38,12 @@ optional arguments:
 import argparse
 import logging
 import time
-from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ModbusIOException
-
+import math
 # setup logging
-FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
+#FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
+FORMAT = "%(asctime)-15s %(levelname)-8s %(message)s"
 logging.basicConfig(format=FORMAT)
 _logger = logging.getLogger()
 
@@ -52,6 +53,29 @@ class Meter:
     def read(self):
         raise NotImplementedError
 
+class Fronius(Meter):
+
+    def __init__(self, host, port, unit):
+        _logger.info("Connecting to Fronius SmartMeter {}:{}:{}".format(host, port, unit))
+        self.smartMeter = ModbusTcpClient(host, port=port)
+        self.unit = unit
+        self.reconnect()
+
+    def reconnect(self):
+        self.smartMeter.connect()
+
+    def read(self):
+        power = self.smartMeter.read_holding_registers(40087, 1, self.unit)
+        
+        _logger.debug("Power raw: {}".format(power.registers[0]))
+        p1 = twos_comp(power.registers[0], 16)
+        _logger.debug("Power twos_comp: {}".format(p1))
+        factor = self.smartMeter.read_holding_registers(40091, 1, self.unit)
+        _logger.debug("Factor: {}".format(factor.registers[0]))
+        powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
+        _logger.info("Power Scaled: {}".format(powerScaled))
+
+        return powerScaled
 
 class SolarEdge(Meter):
 
@@ -90,6 +114,8 @@ class StaticValue(Meter):
 def create_meter(t, host, port, unit, value):
     if t == "se":
         return SolarEdge(host, port, unit)
+    elif t == "fsm":
+        return Fronius(host, port, unit)
     elif t == "static":
         return StaticValue(value)
     raise KeyError("unknown meter type")
@@ -162,7 +188,9 @@ def create_dest(t, host, port, value_transform):
 def loop(source, dest, interval, daemon):
     while True:
         try:
-            dest.write(source.read())
+            val = source.read()
+            if dest:
+                dest.write(val)
             time.sleep(interval)
         except Exception as e:
             if not daemon:
@@ -171,6 +199,13 @@ def loop(source, dest, interval, daemon):
                 _logger.error("Failed to read/write energy value, automatically retrying", exc_info=1)
                 time.sleep(interval)
 
+def twos_comp(val, bits):
+    #compute the 2's complement of int value val
+    if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
+        val = val - (1 << bits)        # compute negative value
+    return val                         # return positive value as is
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -178,8 +213,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--source-type",
-        choices=["se", "static"],
-        help='"se": Solaredge, "static": Simulate a static value',
+        choices=["se", "fsm", "static"],
+        help='"se": Solaredge, "fsm": ForniusSmartMeter, "static": Simulate a static value',
         type=str,
         default="se"
     )
@@ -263,3 +298,5 @@ if __name__ == "__main__":
     source = create_meter(args.source_type, args.source_host, args.source_port, args.source_unit, args.source_value)
     dest = create_dest("lambda", args.dest_host, args.dest_port, args.dest_type)
     loop(source, dest, args.interval, args.daemon)
+
+    #loop(source, None, 5, args.daemon)
