@@ -42,8 +42,8 @@ from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ModbusIOException
 import math
 # setup logging
-#FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
-FORMAT = "%(asctime)-15s %(levelname)-8s %(message)s"
+FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
+#FORMAT = "%(asctime)-15s %(levelname)-8s %(message)s"
 logging.basicConfig(format=FORMAT)
 _logger = logging.getLogger()
 
@@ -73,7 +73,7 @@ class Fronius(Meter):
         factor = self.smartMeter.read_holding_registers(40091, 1, self.unit)
         _logger.debug("Factor: {}".format(factor.registers[0]))
         powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
-        _logger.info("Power Scaled: {}".format(powerScaled))
+        _logger.debug("Power Scaled: {}".format(powerScaled))
 
         return powerScaled
 
