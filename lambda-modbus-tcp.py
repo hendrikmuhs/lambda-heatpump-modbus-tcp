@@ -75,7 +75,7 @@ class Fronius(Meter):
         powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
         _logger.debug("Power Scaled: {}".format(powerScaled))
 
-        return powerScaled
+        return int(powerScaled)
 
 class SolarEdge(Meter):
 
@@ -150,18 +150,20 @@ class Lambda(HeatPump):
         if value_transform == "negative":
             self.transform = self.__negative_transform
         elif value_transform == "positive":
-            self.transform = self.__postive_transform
+            self.transform = self.__positive_transform
         else:
             raise KeyError("unknown value transform")
 
     def write(self, value):
         self.check()
-        r = self.heat_pump.write_registers(102, self.transform(value))
+        val = self.transform(value)
+        _logger.debug("val after transform {}".format(val))
+        r = self.heat_pump.write_registers(102, val)
         if r is ModbusIOException:
             raise RuntimeError("Failed to write value")
         if r.isError():
             raise RuntimeError("Error writing value")
-        _logger.debug("Wrote value {} to lambda heat pump".format(value))
+        _logger.debug("Wrote value {} (hex: {}) to lambda heat pump".format(value, hex(val)))
 
     def check(self):
         r = self.heat_pump.read_holding_registers(1)
