@@ -74,8 +74,9 @@ class Fronius(Meter):
         _logger.debug("Factor: {}".format(factor.registers[0]))
         powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
         _logger.debug("Power Scaled: {}".format(powerScaled))
-
-        return int(powerScaled)
+        powerScaledInv = powerScaled*-1
+        _logger.debug("Power Scaled: {}".format(powerScaledInv))
+        return int(powerScaledInv)
 
 class SolarEdge(Meter):
 
@@ -154,6 +155,7 @@ class Lambda(HeatPump):
         else:
             raise KeyError("unknown value transform")
 
+    # expects excess as a positive value. Depending on --dest-type, the excess might be transformed to negative value
     def write(self, value):
         self.check()
         val = self.transform(value)
