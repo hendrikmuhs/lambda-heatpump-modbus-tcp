@@ -43,7 +43,6 @@ from pymodbus.exceptions import ModbusIOException
 import math
 # setup logging
 FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
-#FORMAT = "%(asctime)-15s %(levelname)-8s %(message)s"
 logging.basicConfig(format=FORMAT)
 _logger = logging.getLogger()
 
@@ -73,7 +72,6 @@ class Fronius(Meter):
         factor = self.smartMeter.read_holding_registers(40091, 1, self.unit)
         _logger.debug("Factor: {}".format(factor.registers[0]))
         powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
-        _logger.debug("Power Scaled: {}".format(powerScaled))
         powerScaledInv = powerScaled*-1
         _logger.debug("Power Scaled: {}".format(powerScaledInv))
         return int(powerScaledInv)
@@ -158,14 +156,14 @@ class Lambda(HeatPump):
     # expects excess as a positive value. Depending on --dest-type, the excess might be transformed to negative value
     def write(self, value):
         self.check()
-        val = self.transform(value)
-        _logger.debug("val after transform {}".format(val))
-        r = self.heat_pump.write_registers(102, val)
+        valueTransformed = self.transform(value)
+        _logger.debug("val after transform {}".format(valueTransformed))
+        r = self.heat_pump.write_registers(102, valueTransformed)
         if r is ModbusIOException:
             raise RuntimeError("Failed to write value")
         if r.isError():
             raise RuntimeError("Error writing value")
-        _logger.debug("Wrote value {} (hex: {}) to lambda heat pump".format(value, hex(val)))
+        _logger.debug("Wrote value {} (hex: {}) to lambda heat pump".format(value, hex(valueTransformed)))
 
     def check(self):
         r = self.heat_pump.read_holding_registers(1)
@@ -192,9 +190,8 @@ def create_dest(t, host, port, value_transform):
 def loop(source, dest, interval, daemon):
     while True:
         try:
-            val = source.read()
             if dest:
-                dest.write(val)
+                dest.write(source.read())
             time.sleep(interval)
         except Exception as e:
             if not daemon:
