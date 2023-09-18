@@ -302,5 +302,3 @@ if __name__ == "__main__":
     source = create_meter(args.source_type, args.source_host, args.source_port, args.source_unit, args.source_value)
     dest = create_dest("lambda", args.dest_host, args.dest_port, args.dest_type)
     loop(source, dest, args.interval, args.daemon)
-
-    #loop(source, None, 5, args.daemon)
