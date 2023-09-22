@@ -10,12 +10,24 @@ Simple script to connect energy meter with a lambda heatpump over modbus tcp to 
 Supports:
 
 - Solaredge energy meter (using [solaredge modbus](https://pypi.org/project/solaredge-modbus/))
+- Fronius Smart Meter
 - Lambda heatpump EU08L, EU13L
+
+Installation:
+
+- install pymodbus (pip3 install pymodbus)
+- install solaredge_modbus (pip3 install solaredge_modbus) if a Solaredge energy meter is used
 
 Example usage:
 
 ```
 python3 lambda-modbus-tcp.py --source-host 192.168.0.106 --dest-host 192.168.0.188 --source-port 1502 --source-unit=4
+```
+
+Example usage for Fronius Smart Meter:
+
+```
+python3 lambda-modbus-tcp.py --source-type fsm --source-host 192.168.0.106 --dest-host 192.168.0.188 --source-port 502 --dest-port 502 --source-unit 200 -d -i 15
 ```
 
 Demo mode:

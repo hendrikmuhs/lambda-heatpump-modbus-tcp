@@ -38,9 +38,9 @@ optional arguments:
 import argparse
 import logging
 import time
-from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ModbusIOException
-
+import math
 # setup logging
 FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -52,6 +52,29 @@ class Meter:
     def read(self):
         raise NotImplementedError
 
+class Fronius(Meter):
+
+    def __init__(self, host, port, unit):
+        _logger.info("Connecting to Fronius SmartMeter {}:{}:{}".format(host, port, unit))
+        self.smartMeter = ModbusTcpClient(host, port=port)
+        self.unit = unit
+        self.reconnect()
+
+    def reconnect(self):
+        self.smartMeter.connect()
+
+    def read(self):
+        power = self.smartMeter.read_holding_registers(40087, 1, self.unit)
+        
+        _logger.debug("Power raw: {}".format(power.registers[0]))
+        p1 = twos_comp(power.registers[0], 16)
+        _logger.debug("Power twos_comp: {}".format(p1))
+        factor = self.smartMeter.read_holding_registers(40091, 1, self.unit)
+        _logger.debug("Factor: {}".format(factor.registers[0]))
+        powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
+        powerScaledInv = powerScaled*-1
+        _logger.debug("Power Scaled: {}".format(powerScaledInv))
+        return int(powerScaledInv)
 
 class SolarEdge(Meter):
 
@@ -90,6 +113,8 @@ class StaticValue(Meter):
 def create_meter(t, host, port, unit, value):
     if t == "se":
         return SolarEdge(host, port, unit)
+    elif t == "fsm":
+        return Fronius(host, port, unit)
     elif t == "static":
         return StaticValue(value)
     raise KeyError("unknown meter type")
@@ -124,18 +149,21 @@ class Lambda(HeatPump):
         if value_transform == "negative":
             self.transform = self.__negative_transform
         elif value_transform == "positive":
-            self.transform = self.__postive_transform
+            self.transform = self.__positive_transform
         else:
             raise KeyError("unknown value transform")
 
+    # expects excess as a positive value. Depending on --dest-type, the excess might be transformed to negative value
     def write(self, value):
         self.check()
-        r = self.heat_pump.write_registers(102, self.transform(value))
+        valueTransformed = self.transform(value)
+        _logger.debug("val after transform {}".format(valueTransformed))
+        r = self.heat_pump.write_registers(102, valueTransformed)
         if r is ModbusIOException:
             raise RuntimeError("Failed to write value")
         if r.isError():
             raise RuntimeError("Error writing value")
-        _logger.debug("Wrote value {} to lambda heat pump".format(value))
+        _logger.debug("Wrote value {} (hex: {}) to lambda heat pump".format(value, hex(valueTransformed)))
 
     def check(self):
         r = self.heat_pump.read_holding_registers(1)
@@ -162,7 +190,8 @@ def create_dest(t, host, port, value_transform):
 def loop(source, dest, interval, daemon):
     while True:
         try:
-            dest.write(source.read())
+            if dest:
+                dest.write(source.read())
             time.sleep(interval)
         except Exception as e:
             if not daemon:
@@ -171,6 +200,13 @@ def loop(source, dest, interval, daemon):
                 _logger.error("Failed to read/write energy value, automatically retrying", exc_info=1)
                 time.sleep(interval)
 
+def twos_comp(val, bits):
+    #compute the 2's complement of int value val
+    if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
+        val = val - (1 << bits)        # compute negative value
+    return val                         # return positive value as is
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -178,8 +214,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--source-type",
-        choices=["se", "static"],
-        help='"se": Solaredge, "static": Simulate a static value',
+        choices=["se", "fsm", "static"],
+        help='"se": Solaredge, "fsm": ForniusSmartMeter, "static": Simulate a static value',
         type=str,
         default="se"
     )
