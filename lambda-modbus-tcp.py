@@ -41,6 +41,7 @@ import time
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ModbusIOException
 import math
+
 # setup logging
 FORMAT = "%(asctime)-15s %(levelname)-8s %(module)-15s:%(lineno)-8s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -51,6 +52,7 @@ _logger = logging.getLogger()
 class Meter:
     def read(self):
         raise NotImplementedError
+
 
 class Fronius(Meter):
 
@@ -65,16 +67,17 @@ class Fronius(Meter):
 
     def read(self):
         power = self.smartMeter.read_holding_registers(40087, 1, self.unit)
-        
+
         _logger.debug("Power raw: {}".format(power.registers[0]))
         p1 = twos_comp(power.registers[0], 16)
         _logger.debug("Power twos_comp: {}".format(p1))
         factor = self.smartMeter.read_holding_registers(40091, 1, self.unit)
         _logger.debug("Factor: {}".format(factor.registers[0]))
-        powerScaled = p1* math.pow(10, twos_comp(factor.registers[0], 16))
-        powerScaledInv = powerScaled*-1
+        powerScaled = p1 * math.pow(10, twos_comp(factor.registers[0], 16))
+        powerScaledInv = powerScaled * -1
         _logger.debug("Power Scaled: {}".format(powerScaledInv))
         return int(powerScaledInv)
+
 
 class SolarEdge(Meter):
 
@@ -133,10 +136,9 @@ class Lambda(HeatPump):
     def __negative_transform(v):
         if v <= 0:
             return min(-v, 0x7fff)
-        elif v < 0x8000 :
+        elif v < 0x8000:
             return 0x10000 - v
         return 0x8000
-
 
     @staticmethod
     def __positive_transform(v):
@@ -197,15 +199,17 @@ def loop(source, dest, interval, daemon):
             if not daemon:
                 raise e
             else:
-                _logger.error("Failed to read/write energy value, automatically retrying", exc_info=1)
+                _logger.error("Failed to read/write energy value, automatically retrying", exc_info=e)
                 time.sleep(interval)
+                source.reconnect()
+                dest.reconnect()
+
 
 def twos_comp(val, bits):
-    #compute the 2's complement of int value val
-    if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
-        val = val - (1 << bits)        # compute negative value
-    return val                         # return positive value as is
-
+    # compute the 2's complement of int value val
+    if (val & (1 << (bits - 1))) != 0:  # if sign bit is set e.g., 8bit: 128-255
+        val = val - (1 << bits)  # compute negative value
+    return val  # return positive value as is
 
 
 if __name__ == "__main__":
