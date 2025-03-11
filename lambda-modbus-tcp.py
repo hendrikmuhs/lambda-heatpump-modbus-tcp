@@ -112,6 +112,9 @@ class StaticValue(Meter):
     def read(self):
         return self.value
 
+    def reconnect(self):
+        pass
+
 
 def create_meter(t, host, port, unit, value):
     if t == "se":
